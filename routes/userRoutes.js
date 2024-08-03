@@ -8,4 +8,6 @@ userRouter.get(
 
   userController.verifyActivationToken
 );
+
+userRouter.post("/signin", userController.signin)
 module.exports = userRouter;

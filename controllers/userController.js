@@ -110,11 +110,86 @@ const userController = {
 
   signin: async function (request, response) {
     try {
-    } catch (error) {}
+      // Get password and email from request body
+      const password = request.body?.password;
+      const email = request.body.email?.toLowerCase();
+
+      // Check for required fields (password and email)
+      if (!password || !email) {
+        // Respond with Bad Request (400) if either is missing
+        return response
+          .status(400) //If any one of them undefined return Bad Request
+          .json({ message: "Password and Email are requierd" });
+      }
+
+      // Searching for a user with the provided email in the database
+      let user = await UserModal.findOne({ email: email });
+
+      // Check if the user exists
+      if (!user) {
+        // If no user is found, return a 401 Unauthorized status code and an error message
+        return response
+          .status(401)
+          .json({ message: "user does not exist, Please register!" });
+      }
+
+      // Checking if the user's email is verified
+      if (!user.verification) {
+        // If not, return a 403 Forbidden status code and an error message
+        return response.status(403).json({
+          message: "Your account is InActive, Please verify your email",
+        });
+      }
+
+      // Compare the entered password with the hashed password using bcrypt
+      const isAuthenticated = await bcrypt.compare(password, user.passwordHash);
+
+      // If the password is incorrect, return a 401 Unauthorized status code and an error message
+      if (!isAuthenticated) {
+        return response.status(401).json({ message: "invalid password" });
+      }
+
+      // Create a JWT access token containing user information
+      const accessToken = jwt.sign(
+        {
+          name: user.name,
+          email: user.email,
+          id: user._id,
+          role:user.role
+        },
+        envProcess.JWT_SECRET,
+        { expiresIn: "8h" } // Access token expires in 8 hours
+      );
+
+      let loggedInUser = await UserModal.findById(user._id, {
+        passwordHash: 0,
+        verification: 0,
+        verificationToken: 0,
+        resetToken: 0,
+      });
+      // If everything is correct, return a 200 OK status code and the user details along with the access token
+      return response.status(200).json({
+        message: "Login succesfull",
+        data:{
+        accessToken,
+        expiresIn: 8 * 60 * 60, // 8 hours in seconds
+        loggedInUser,
+        }
+      });
+    } catch (error) {
+      // If an error occurs, log the error and return a 500 Internal Server Error status code and an error message
+      console.error(error);
+      return response
+        .status(500)
+        .json({ error: "Internal Server Error", error: error.message });
+    }
   },
 
   logout: async function (request, response) {
     try {
+      request.user.tokens = request.user.tokens.filter((token) => {
+        return token.token != request.token;
+      });
     } catch (error) {}
   },
 
